@@ -7,7 +7,7 @@
 ![Guidewire DEVTrails 2026](https://img.shields.io/badge/Guidewire-DEVTrails%202026-FF5722?style=for-the-badge)
 ![Flutter](https://img.shields.io/badge/Frontend-Flutter-1565C0?style=for-the-badge&logo=flutter)
 ![FastAPI](https://img.shields.io/badge/Backend-FastAPI-2E7D32?style=for-the-badge)
-![XGBoost](https://img.shields.io/badge/AI-XGBoost-6A1B9A?style=for-the-badge)
+![Hybrid AI Model](https://img.shields.io/badge/AI-Hybrid%20Risk%20Model-6A1B9A?style=for-the-badge)
 ![Razorpay](https://img.shields.io/badge/Payments-Razorpay%20UPI-E65100?style=for-the-badge)
 
 <br>
@@ -44,7 +44,8 @@ India has 3 million active food delivery riders on Zomato and Swiggy. On any day
 ```
 Rider subscribes (4-min onboarding)
         ↓
-Flutter app passively monitors activity in background
+Flutter app passively monitors GPS, network, accelerometer,
+and ambient environment in the background
         ↓
 Disruption detected via weather / civic / platform APIs
         ↓
@@ -78,7 +79,26 @@ Total time from trigger to payout: < 60 seconds
 | 🟠 High Risk | ₹179 | ₹600 |
 | 🔴 Surge (active alert) | ₹199 | ₹600 |
 
-Premiums are personalised by a two-stage XGBoost model using 12 features across zone history, environmental forecasts, rider profile, and temporal signals.
+Premiums are personalised by a hybrid AI risk model that combines 60% historical disruption data with 40% 7-day forecast data to produce a dynamic weekly disruption risk score per zone.
+
+---
+
+## The Hybrid Risk Formula
+
+```
+( 0.6 × Historical Risk Score ) + ( 0.4 × Forecast Risk Score )
+= Final Disruption Risk %
+
+Example:
+Historical pin-code risk: 15%
+7-day storm forecast risk: 25%
+─────────────────────────────────────────────────────────────
+(0.6 × 15) + (0.4 × 25) = 19% Final Disruption Risk
+
+Premium = 19% × ₹600 coverage cap × 1.30 margin = ~₹148 base
+AI modifiers: zone multiplier × seasonal loading − loyalty discount
+Final output clamped: floor ₹49 — ceiling ₹249
+```
 
 ---
 
@@ -114,12 +134,22 @@ THEN → Execute Razorpay UPI Payout within 60 seconds
 
 ## Adversarial Defense
 
-GigShield is hardened against coordinated GPS spoofing syndicates — a documented attack pattern from parametric insurance beta deployments in India. Our defense runs four independent layers:
+GigShield uses a two-tier fraud architecture. The device layer defeats opportunistic individual fraud. The system layer defeats coordinated syndicate attacks.
 
-- **Cell tower hard gate** — tower zone must match GPS zone or claim is immediately suspended
-- **Behavioural biometric fingerprint** — 90-day baseline per rider; isolation forest flags deviations
-- **Network environment consistency** — home Wi-Fi during a claimed active shift is a strong spoofing indicator
-- **Zone velocity circuit breaker** — if claim volume exceeds 3× the 30-day average in any 20-minute window, all zone payouts pause automatically
+**Device Layer — Passive Sensor Verification**
+
+Three independent physical signals collected passively by the Flutter app:
+
+- **Network type check** — `navigator.connection` API detects whether the device is on mobile data or home Wi-Fi
+- **Accelerometer pattern** — `DeviceMotion` API checks for variance consistent with two-wheeler movement vs stationary device
+- **Ambient sound level** — Web Audio API measures decibel level only (no recording); delivery zones are measurably louder than residential areas
+
+**System Layer — Cannot Be Spoofed from a Phone**
+
+- **Order volume anchor** — no payout fires without a ≥35% zone-level platform order drop; this signal comes from the platform's servers, not the rider's device
+- **Zone velocity circuit breaker** — if claim volume exceeds 3× the 30-day baseline in any 20-minute window, all zone payouts pause automatically
+- **Temporal activation spike** — 20+ riders activating in the same zone within 3 minutes triggers a cohort hold
+- **Isolation forest baseline** — each rider's claim is compared against their own 90-day behavioural history, not the population average
 
 ---
 
@@ -147,7 +177,7 @@ GigShield is hardened against coordinated GPS spoofing syndicates — a document
 **Phase 1 deliverables completed:**
 - [x] Repository created with full documentation
 - [x] Persona selection with comparative justification
-- [x] Weekly premium model with full calculation methodology
+- [x] Hybrid risk model and premium calculation methodology documented
 - [x] Disruption taxonomy (environmental + social)
 - [x] Parametric triggers with data sources and thresholds
 - [x] Tech stack and system architecture documented
@@ -158,7 +188,7 @@ GigShield is hardened against coordinated GPS spoofing syndicates — a document
 
 ## Full Documentation
 
-For the complete proposal including worked premium calculations, full adversarial defense specification, payout examples, and system design detail:
+For the complete proposal including full hybrid model walkthrough, worked premium calculations, adversarial defense specification, payout schedule, and system design detail:
 
 <div align="center">
 
