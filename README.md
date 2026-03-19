@@ -1,0 +1,1 @@
+# GigShield---AI-powered-parametric-insurance-platform
