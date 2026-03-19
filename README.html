@@ -418,7 +418,7 @@ footer strong{color:var(--orange);font-weight:400}
       <div class="how-step">
         <div class="how-step-circle">2</div>
         <div class="how-step-title">Background Monitoring</div>
-        <div class="how-step-desc">The Flutter app passively monitors GPS, cell towers, and network signals during the rider's active hours. No manual action required.</div>
+        <div class="how-step-desc">The Flutter app passively monitors GPS, network signals, accelerometer patterns, and ambient environment during the rider's active hours. No manual action required.</div>
       </div>
       <div class="how-step">
         <div class="how-step-circle">3</div>
@@ -443,7 +443,7 @@ footer strong{color:var(--orange);font-weight:400}
     </div>
 
     <h3>What Makes This Architecturally Novel</h3>
-    <p>The central innovation in GigShield is solving the platform API gap. Delivery platforms like Zomato and Swiggy do not expose rider activity APIs to third parties. Previous attempts at gig worker insurance could not verify whether a rider was actually working at the time of a disruption, making automated payouts impossible without enabling mass fraud. GigShield resolves this through a consent-based multi-signal activity model that infers working status from GPS movement patterns, cell tower triangulation, network environment signals, and restaurant-zone proximity — all collected passively in the background by the Flutter app during the rider's registered working hours. No platform cooperation is required, and no single signal can be trivially gamed.</p>
+    <p>The central innovation in GigShield is solving the platform API gap. Delivery platforms like Zomato and Swiggy do not expose rider activity APIs to third parties. GigShield resolves this through a consent-based multi-signal activity model that infers working status from GPS movement patterns, passive sensor readings (network type, accelerometer pattern, ambient sound level), and restaurant-zone proximity — all collected passively in the background by the Flutter app. No platform cooperation is required, and no single signal can be trivially gamed in isolation.</p>
   </div>
 </section>
 
@@ -595,33 +595,68 @@ footer strong{color:var(--orange);font-weight:400}
   <div class="container">
     <div class="section-label">06 — Premium Calculation Engine</div>
     <h2>AI-Driven Personalised Pricing — Fully Traced</h2>
-    <p class="h2-sub">GigShield does not use a fixed lookup table. Every rider receives a personalised weekly premium computed by a two-stage XGBoost pipeline. Here is the full methodology, formula, and three worked examples end-to-end.</p>
+    <p class="h2-sub">GigShield does not use a fixed lookup table. Every rider receives a personalised weekly premium computed by a hybrid AI risk model combining historical disruption data with 7-day predictive forecasts. Here is the full methodology, formula, and three worked examples end-to-end.</p>
 
-    <h3>The Two-Stage Model Architecture</h3>
+    <h3>The Hybrid Risk Model — Historical + Forecast</h3>
+    <p>The core innovation in GigShield's pricing engine is that it does not rely on historical data alone, nor on forecast data alone. It combines both through a weighted hybrid formula. Historical data tells us what a zone's long-run risk profile is. Forecast data tells us what is likely to happen in the specific week the rider is buying coverage. Neither is sufficient on its own — a zone with high historical risk may have a clear week ahead, and a low-risk zone may face an unusual storm forecast. The hybrid model captures both dimensions.</p>
+
     <div class="two-col">
       <div class="info-block">
-        <div class="info-block-title">Stage 1 — Disruption Probability Classifier</div>
-        <div class="info-block-body">Model type: XGBoost Classifier (binary output per day)<br><br>Training data: 3 years of IMD weather records by pin code, CPCB AQI logs, government gazette civic disruption records, platform order volume proxy data.<br><br>Output: P(disruption) — the probability that a disruption will occur in the rider's zone during the coming 7-day window. This is not a binary yes/no; it is a continuous probability value between 0.05 and 0.45, updated weekly as new forecast data arrives.</div>
+        <div class="info-block-title">Historical Risk Score (60% weight)</div>
+        <div class="info-block-body">Derived from 3 years of IMD pin-code level weather records, CPCB AQI logs, and government civic disruption records. Represents the long-run base rate of disruption for the rider's zone. Stable week-to-week. Updated monthly as new claims data accumulates.<br><br>A zone in coastal Mumbai with 28 disruption events per year scores much higher than an elevated Pune zone with 6 events per year.</div>
       </div>
       <div class="info-block">
-        <div class="info-block-title">Stage 2 — Premium Regression Model</div>
-        <div class="info-block-body">Model type: XGBoost Regressor (continuous output in ₹)<br><br>Input: P(disruption) from Stage 1 plus 11 additional features across zone, environment, rider profile, and temporal categories.<br><br>Output: Weekly premium in ₹, clamped between a floor of ₹49 and a ceiling of ₹249 to prevent extreme outlier premiums for either the rider or the platform.<br><br>Explainability: A SHAP layer translates model output into plain-language premium breakdowns shown to the rider at onboarding.</div>
+        <div class="info-block-title">Forecast Risk Score (40% weight)</div>
+        <div class="info-block-body">Derived from the OpenWeather 7-day forecast API. Converts the coming week's weather predictions into a risk score between 0.0 and 1.0. A clear week with low rain probability scores near 0.05. A week with a heavy storm system forecast scores near 0.72.<br><br>This is what makes the premium dynamic — the same zone can have a materially different premium in a clear week versus a monsoon week.</div>
       </div>
     </div>
 
-    <h3>The Premium Formula — Step by Step</h3>
-    <p>The formula has five sequential steps. Each step is a transformation applied to the output of the previous one. The final output is clamped to protect both riders (floor) and the platform (ceiling).</p>
+    <div class="formula-visual">
+
+      <div class="formula-result-row" style="margin-bottom:0">
+        <div class="formula-result-inner" style="background:var(--ink2);border-color:var(--orange)">
+          <div class="formula-result-label">THE HYBRID RISK FORMULA</div>
+          <div class="formula-result-eq">( 0.6 × Historical Risk Score ) + ( 0.4 × Forecast Risk Score ) = Final Disruption Risk %</div>
+          <div class="formula-result-note">The 60/40 weighting reflects a deliberate design choice: historical data is more reliable as a base rate but does not capture near-term events. Forecast data is highly responsive but noisier over longer windows. The blend produces a stable-yet-responsive disruption probability that neither overreacts to short-term forecasts nor ignores them.</div>
+        </div>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--border2);border-radius:4px;padding:22px 24px;margin:16px 0">
+        <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--ink);margin-bottom:14px">Real-World Example</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+          <div style="background:var(--ink);color:white;border-radius:4px;padding:16px;text-align:center">
+            <div style="font-family:'DM Mono',monospace;font-size:10px;color:rgba(255,255,255,0.4);margin-bottom:6px;letter-spacing:0.1em">HISTORICAL RISK</div>
+            <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:white">15%</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.45);margin-top:4px">Pin-code base rate</div>
+          </div>
+          <div style="background:var(--ink);color:white;border-radius:4px;padding:16px;text-align:center">
+            <div style="font-family:'DM Mono',monospace;font-size:10px;color:rgba(255,255,255,0.4);margin-bottom:6px;letter-spacing:0.1em">7-DAY FORECAST</div>
+            <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:white">25%</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.45);margin-top:4px">Storm system incoming</div>
+          </div>
+          <div style="background:var(--orange);color:white;border-radius:4px;padding:16px;text-align:center">
+            <div style="font-family:'DM Mono',monospace;font-size:10px;color:rgba(255,255,255,0.7);margin-bottom:6px;letter-spacing:0.1em">HYBRID OUTPUT</div>
+            <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:white">19%</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.7);margin-top:4px">(0.6×15) + (0.4×25) = 19</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <h3>Weekly Premium Calculation — 4 Steps</h3>
+    <p>Once the hybrid disruption risk percentage is established, the premium is calculated in four clean steps.</p>
 
     <div class="formula-visual">
 
       <div class="formula-step-row">
         <div class="formula-step-badge">STEP 1</div>
         <div class="formula-step-box">
-          <div class="formula-step-name">Base Expected Loss</div>
-          <div class="formula-step-equation">P(disruption) &nbsp;×&nbsp; ₹600</div>
-          <div class="formula-step-note">P(disruption) comes from the Stage 1 XGBoost Classifier. It is a probability between 0.05 and 0.45 representing how likely a payout-triggering event is in the rider's zone during the coming week. Multiplying by ₹600 converts probability into the expected monetary loss the platform must cover per rider.</div>
+          <div class="formula-step-name">Estimate Exposure</div>
+          <div class="formula-step-equation">₹140/hr &nbsp;×&nbsp; 9 hours lost/week &nbsp;=&nbsp; ₹1,260 at risk</div>
+          <div class="formula-step-note">A rider earning ₹140/hour who loses 9 hours of earnings to disruption events during a typical monsoon week faces ₹1,260 in income exposure. This is the maximum realistic loss — not the expected loss. It establishes the ceiling of what coverage needs to protect against.</div>
         </div>
-        <div class="formula-step-example">e.g. 0.18 × ₹600 = <strong>₹108</strong></div>
+        <div class="formula-step-example">₹140 × 9 hrs = <strong>₹1,260</strong> at risk</div>
       </div>
 
       <div class="formula-arrow-down">↓</div>
@@ -629,11 +664,11 @@ footer strong{color:var(--orange);font-weight:400}
       <div class="formula-step-row">
         <div class="formula-step-badge">STEP 2</div>
         <div class="formula-step-box">
-          <div class="formula-step-name">Apply Operational Margin (×1.30)</div>
-          <div class="formula-step-equation">Base Expected Loss &nbsp;×&nbsp; 1.30</div>
-          <div class="formula-step-note">A fixed 30% loading is added to cover three costs: platform technology and operations (~10%), a fraud reserve to fund contested claims and manual reviews (~10%), and a reinsurance buffer for catastrophic multi-zone events (~10%). This margin is fixed — it does not vary by rider or zone.</div>
+          <div class="formula-step-name">Set Coverage Cap for Affordability</div>
+          <div class="formula-step-equation">Max weekly payout capped at &nbsp;₹600</div>
+          <div class="formula-step-note">The full ₹1,260 exposure cannot be covered at a premium price that is affordable for a rider earning ₹6,000/week. The ₹600 cap is set at approximately 47% of maximum exposure — enough to materially replace the most common disruption loss (a 2–4 hour event) while keeping premiums accessible. This is not an arbitrary number; it is derived from real rider income data.</div>
         </div>
-        <div class="formula-step-example">₹108 × 1.30 = <strong>₹140.40</strong></div>
+        <div class="formula-step-example">Cap set at <strong>₹600</strong> per week</div>
       </div>
 
       <div class="formula-arrow-down">↓</div>
@@ -641,11 +676,11 @@ footer strong{color:var(--orange);font-weight:400}
       <div class="formula-step-row">
         <div class="formula-step-badge">STEP 3</div>
         <div class="formula-step-box">
-          <div class="formula-step-name">Apply Zone Multiplier (×0.80 to ×1.30)</div>
-          <div class="formula-step-equation">× Zone_Multiplier</div>
-          <div class="formula-step-note">The zone multiplier reflects the physical risk characteristics of the rider's delivery zone — elevation category, historical waterlogging incidents, proximity to rivers or coastline, and drainage infrastructure quality. A dry elevated zone with no flood history scores 0.80, reducing the premium. A low-lying coastal zone with annual flooding scores 1.30, increasing it. The AI derives this from GIS terrain data and IMD historical records.</div>
+          <div class="formula-step-name">Calculate Expected Loss</div>
+          <div class="formula-step-equation">Disruption Risk % &nbsp;×&nbsp; ₹600 Coverage Cap</div>
+          <div class="formula-step-note">The hybrid disruption risk percentage (from the historical + forecast model) is applied to the coverage cap to calculate the expected loss — the statistically expected payout the platform must cover per rider per week. This is the actuarially fair base price before any platform costs are added.</div>
         </div>
-        <div class="formula-step-example">₹140.40 × 1.00 = <strong>₹140.40</strong></div>
+        <div class="formula-step-example">19% × ₹600 = <strong>₹114</strong> expected loss</div>
       </div>
 
       <div class="formula-arrow-down">↓</div>
@@ -653,47 +688,37 @@ footer strong{color:var(--orange);font-weight:400}
       <div class="formula-step-row">
         <div class="formula-step-badge">STEP 4</div>
         <div class="formula-step-box">
-          <div class="formula-step-name">Apply Seasonal Loading (×1.00 or ×1.15)</div>
-          <div class="formula-step-equation">× Seasonal_Loading</div>
-          <div class="formula-step-note">During India's monsoon season (June through September as defined by IMD's seasonal calendar), disruption probability across all zones increases materially. A 15% seasonal loading is applied automatically to all active policies during these months. Outside the monsoon window, the multiplier is 1.00 — no seasonal adjustment. This is a binary flag, not a gradient.</div>
+          <div class="formula-step-name">Apply Operational Margin</div>
+          <div class="formula-step-equation">Expected Loss &nbsp;×&nbsp; 1.30 &nbsp;(30% margin)</div>
+          <div class="formula-step-note">A 30% operational margin is added to cover platform technology costs (~10%), a fraud reserve for contested claims and manual reviews (~10%), and a reinsurance buffer for catastrophic multi-zone events (~10%). This yields the final weekly premium. AI adjustments for zone risk, seasonal loading, and loyalty discounts are then applied on top as modifiers.</div>
         </div>
-        <div class="formula-step-example">₹140.40 × 1.00 = <strong>₹140.40</strong> (non-monsoon)</div>
-      </div>
-
-      <div class="formula-arrow-down">↓</div>
-
-      <div class="formula-step-row">
-        <div class="formula-step-badge">STEP 5</div>
-        <div class="formula-step-box">
-          <div class="formula-step-name">Subtract Loyalty Discount (₹0 to ₹15)</div>
-          <div class="formula-step-equation">− Loyalty_Discount</div>
-          <div class="formula-step-note">Riders who maintain continuous coverage with no fraud flags accumulate a loyalty discount: ₹5 for each 6-month period of uninterrupted coverage, up to a maximum of ₹15 (reached at 18 months). This discount rewards long-term riders and reduces churn. It is applied as a flat rupee deduction — not a percentage — so it provides proportionally greater benefit to lower-risk riders on smaller premiums.</div>
-        </div>
-        <div class="formula-step-example">₹140.40 − ₹10 = <strong>₹130.40</strong></div>
+        <div class="formula-step-example">₹114 × 1.30 = <strong>~₹148</strong> base premium</div>
       </div>
 
       <div class="formula-arrow-down">↓</div>
 
       <div class="formula-result-row">
         <div class="formula-result-inner">
-          <div class="formula-result-label">FINAL DELIVERED PREMIUM</div>
-          <div class="formula-result-eq">max( ₹49, &nbsp; min( ₹249, &nbsp; calculated_premium ) )</div>
-          <div class="formula-result-note">The output is clamped between a floor of ₹49 and a ceiling of ₹249. The floor ensures every policy carries enough premium to cover minimum platform costs. The ceiling prevents extreme premiums in very high-risk scenarios — protecting rider affordability. Rider C above delivers ₹130 per week.</div>
+          <div class="formula-result-label">AI MODIFIERS APPLIED ON TOP</div>
+          <div class="formula-result-eq">Base Premium &nbsp;× Zone Multiplier &nbsp;× Seasonal Loading &nbsp;− Loyalty Discount</div>
+          <div class="formula-result-note">Zone multiplier (0.80–1.30) adjusts for hyper-local flood risk. Seasonal loading (×1.15 June–September) adds monsoon uplift. Loyalty discount (₹5 per 6-month period, max ₹15) rewards continuous coverage. Final output is clamped between a floor of ₹49 and a ceiling of ₹249.</div>
         </div>
       </div>
 
     </div>
 
-    <h3>Component Reference Table</h3>
+    <h3>Component Reference</h3>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Component</th><th>Value / Range</th><th>How the AI Determines It</th></tr></thead>
+        <thead><tr><th>Component</th><th>Value / Range</th><th>Source</th></tr></thead>
         <tbody>
-          <tr><td>P(disruption)</td><td>0.05 to 0.45</td><td>XGBoost Classifier: historical disruption frequency + 7-day forecast score + 30-day AQI + monsoon flag + zone elevation</td></tr>
-          <tr><td>Operational Margin</td><td>1.30 (fixed)</td><td>Fixed at 30% loading over expected loss to cover platform costs, fraud reserve, and reinsurance</td></tr>
-          <tr><td>Zone Multiplier</td><td>0.80 to 1.30</td><td>Derived from zone elevation category, historical waterlogging events, and proximity to water bodies. Low-elevation flood-prone zones score 1.30; elevated dry zones score 0.80</td></tr>
-          <tr><td>Seasonal Loading</td><td>1.00 or 1.15</td><td>1.15 applied June through September (IMD monsoon season flag). 1.00 for all other months.</td></tr>
-          <tr><td>Loyalty Discount</td><td>₹0 to ₹15</td><td>₹5 per 6 months of continuous coverage with no fraud flags, capped at ₹15. Applied as flat deduction after all multipliers.</td></tr>
+          <tr><td>Historical Risk Score</td><td>Weight: 60%</td><td>3 years of IMD pin-code records, CPCB AQI logs, civic event logs</td></tr>
+          <tr><td>Forecast Risk Score</td><td>Weight: 40%</td><td>OpenWeather 7-day forecast API, updated weekly</td></tr>
+          <tr><td>Coverage Cap</td><td>₹600 (fixed)</td><td>Derived from rider income data — 47% of maximum weekly exposure</td></tr>
+          <tr><td>Operational Margin</td><td>1.30 (fixed)</td><td>Platform ops 10% + fraud reserve 10% + reinsurance buffer 10%</td></tr>
+          <tr><td>Zone Multiplier</td><td>0.80 to 1.30</td><td>GIS terrain data + IMD historical waterlogging records</td></tr>
+          <tr><td>Seasonal Loading</td><td>1.00 or 1.15</td><td>IMD monsoon season flag — 1.15 applied June–September only</td></tr>
+          <tr><td>Loyalty Discount</td><td>₹0 to ₹15</td><td>₹5 per 6 months of continuous coverage with no fraud flags</td></tr>
         </tbody>
       </table>
     </div>
@@ -714,7 +739,7 @@ footer strong{color:var(--orange);font-weight:400}
             <div class="calc-input-row"><span class="calc-input-label">Monsoon flag</span><span class="calc-input-val">0 (inactive)</span></div>
             <div class="calc-input-row"><span class="calc-input-label">Rider tenure</span><span class="calc-input-val">1 month (new)</span></div>
             <div class="calc-input-row"><span class="calc-input-label">Zone multiplier</span><span class="calc-input-val">0.82</span></div>
-            <div class="calc-input-row"><span class="calc-input-label">Stage 1 P(disruption)</span><span class="calc-input-val">0.10 (10%)</span></div>
+            <div class="calc-input-row"><span class="calc-input-label">Hybrid disruption risk</span><span class="calc-input-val">0.10 (10%)</span></div>
           </div>
           <div class="calc-steps">
             <div class="calc-step-row"><span class="calc-step-label">0.10 × ₹600</span><span class="calc-step-val">₹60.00</span></div>
@@ -736,7 +761,7 @@ footer strong{color:var(--orange);font-weight:400}
             <div class="calc-input-row"><span class="calc-input-label">Monsoon flag</span><span class="calc-input-val">1 (active — July)</span></div>
             <div class="calc-input-row"><span class="calc-input-label">Rider tenure</span><span class="calc-input-val">18 months, 0 fraud flags</span></div>
             <div class="calc-input-row"><span class="calc-input-label">Zone multiplier</span><span class="calc-input-val">1.28</span></div>
-            <div class="calc-input-row"><span class="calc-input-label">Stage 1 P(disruption)</span><span class="calc-input-val">0.38 (38%)</span></div>
+            <div class="calc-input-row"><span class="calc-input-label">Hybrid disruption risk</span><span class="calc-input-val">0.38 (38%)</span></div>
           </div>
           <div class="calc-steps">
             <div class="calc-step-row"><span class="calc-step-label">0.38 × ₹600</span><span class="calc-step-val">₹228.00</span></div>
@@ -758,7 +783,7 @@ footer strong{color:var(--orange);font-weight:400}
             <div class="calc-input-row"><span class="calc-input-label">Monsoon flag</span><span class="calc-input-val">0 (inactive — October)</span></div>
             <div class="calc-input-row"><span class="calc-input-label">Rider tenure</span><span class="calc-input-val">12 months, 0 fraud flags</span></div>
             <div class="calc-input-row"><span class="calc-input-label">Zone multiplier</span><span class="calc-input-val">1.00</span></div>
-            <div class="calc-input-row"><span class="calc-input-label">Stage 1 P(disruption)</span><span class="calc-input-val">0.18 (18%)</span></div>
+            <div class="calc-input-row"><span class="calc-input-label">Hybrid disruption risk</span><span class="calc-input-val">0.18 (18%)</span></div>
           </div>
           <div class="calc-steps">
             <div class="calc-step-row"><span class="calc-step-label">0.18 × ₹600</span><span class="calc-step-val">₹108.00</span></div>
@@ -773,13 +798,13 @@ footer strong{color:var(--orange);font-weight:400}
       </div>
 
       <div style="background:rgba(255,255,255,0.05);border-radius:4px;padding:18px 22px;margin-top:8px;font-size:12.5px;color:rgba(255,255,255,0.6);line-height:1.7">
-        <strong style="color:var(--orange-light)">SHAP Explainability — What Rider C Sees at Onboarding:</strong><br>
-        "Your premium this week is ₹130. The main factors driving this are: your zone has a moderate flood history (+₹18), this week's weather forecast shows a 22% chance of disruption (+₹14), your 12 months of continuous coverage earns a loyalty discount (−₹10), and no monsoon loading applies this month."
+        <strong style="color:var(--orange-light)">SHAP Explainability — What a Rider Sees at Onboarding:</strong><br>
+        "Your premium this week is ₹148. The main factors: your zone's 3-year disruption history contributes a base risk of 15% (+₹54), this week's storm forecast adds an extra 10% risk (+₹36), your zone's flood history adds a small uplift (+₹12), and no monsoon loading applies this month."
       </div>
     </div>
 
     <h3>Model Retraining Cadence</h3>
-    <p>The XGBoost models are retrained monthly using accumulated claims data, actual disruption event logs, and rider activity records from the preceding 90 days. This allows the model to continuously improve its P(disruption) estimates as real payout data accumulates and zone-level risk profiles become more accurate. During the hackathon phase, the models are initialised with simulated training data generated from IMD historical records and a synthetic rider behaviour dataset calibrated to Mumbai, Bangalore, and Delhi delivery patterns.</p>
+    <p>The hybrid risk model is retrained on a monthly cadence using accumulated claims data, actual disruption event logs, and rider activity records from the preceding 90 days. As real payout data accumulates and zone-level risk profiles sharpen, the historical risk scores become more accurate at the pin-code level — reducing pricing error over time. For the initial launch phase, the model is initialised with simulated training data generated from IMD historical records and a synthetic rider behaviour dataset calibrated to delivery patterns in Mumbai, Bangalore, and Delhi.</p>
   </div>
 </section>
 
@@ -790,7 +815,7 @@ footer strong{color:var(--orange);font-weight:400}
     <h2>Proving a Rider Was Working — Without Platform APIs</h2>
     <p class="h2-sub">The absence of platform API access is the central technical challenge of gig worker parametric insurance. GigShield resolves it through a consent-based multi-signal activity model that no single signal alone can fake.</p>
 
-    <p>Zomato and Swiggy do not expose rider activity data to third parties. This means a traditional "was the rider working?" check is impossible. GigShield takes a fundamentally different approach: instead of asking the platform, it infers working status from six independent signals that a genuine working rider produces naturally — and that a fraudster attempting to fake a claim cannot simultaneously produce convincingly.</p>
+    <p>Zomato and Swiggy do not expose rider activity data to third parties. GigShield infers working status from independent signals that a genuine working rider produces naturally — and that a fraudster attempting to fake a claim cannot simultaneously produce convincingly across all dimensions.</p>
 
     <h3>Signal Architecture and Weights</h3>
     <div class="signal-grid">
@@ -819,7 +844,7 @@ footer strong{color:var(--orange);font-weight:400}
         <span class="signal-badge badge-mid">MED</span>
       </div>
       <div class="signal-row">
-        <span class="signal-label">Cell Tower Movement</span>
+        <span class="signal-label">Passive Sensor Layer</span>
         <div class="signal-bar-track"><div class="signal-bar-fill" style="width:10%"></div></div>
         <span class="signal-pct">10%</span>
         <span class="signal-badge badge-high">HIGH</span>
@@ -827,8 +852,8 @@ footer strong{color:var(--orange);font-weight:400}
     </div>
 
     <div class="callout callout-info">
-      <div class="callout-title">Why GPS movement is 30% — not 100%</div>
-      GPS alone is insufficient and spoofable. The 30% weight reflects its value as a corroborating signal, not a standalone truth signal. A rider producing all five signals simultaneously — correct speed range, correct zone, correct stop pattern, correct time of day, and matching cell towers — creates a composite profile that is extremely difficult to fabricate convincingly. Fraud resistance comes from requiring simultaneous corroboration, not from the precision of any single signal.
+      <div class="callout-title">Why GPS is 30% — not 100%</div>
+      GPS alone is spoofable. The composite model requires corroboration across independent dimensions — correct speed range, correct zone, correct stop pattern, correct time of day, and consistent passive sensor readings. A fraudster must fake all five simultaneously. Fraud resistance comes from the combination, not the precision of any individual signal. The Passive Sensor Layer (network type, accelerometer pattern, ambient sound level) covers three physical environment dimensions completely independent of GPS.
     </div>
 
     <h3>Composite Score and Routing</h3>
@@ -860,88 +885,141 @@ footer strong{color:var(--orange);font-weight:400}
   <div class="container">
     <div class="section-label">08 — Adversarial Defense</div>
     <h2>Anti-Spoofing Strategy</h2>
-    <p class="h2-sub">A coordinated syndicate of 500 riders using GPS spoofing apps is not a hypothetical threat. It is a documented attack pattern from beta deployments of parametric platforms in India. GigShield's architecture was redesigned to defeat it.</p>
+    <p class="h2-sub">GigShield uses a two-tier fraud architecture. The device layer defeats opportunistic individual fraud. The system layer defeats coordinated syndicate attacks. Each tier targets a different attacker profile. Neither tier relies on the other.</p>
 
     <div class="adversarial-hero">
-      <p><strong>The Attack:</strong> Organized syndicates coordinate via Telegram. Members install advanced GPS spoofing applications that simulate realistic delivery-zone movement — not teleportation, but gradual, plausible routes through known restaurant clusters. During a red-alert weather event, 500+ members activate simultaneously. The payout system, seeing hundreds of "active" riders in the disruption zone, initiates transfers. The liquidity pool drains in minutes.</p>
-      <p><strong>Why standard defenses fail:</strong> Speed-and-jump detection catches naive spoofing. It does not catch an application that simulates a 30 km/h two-wheeler moving through a known delivery route. Isolation forest anomaly detection catches individual behavioral deviations. It does not catch 500 new accounts with no behavioral history to deviate from. <strong>Simple GPS verification is officially obsolete.</strong></p>
+      <p><strong>The Threat:</strong> Organized syndicates coordinate via Telegram. Members install GPS spoofing applications that simulate realistic delivery-zone movement — gradual, plausible routes through known restaurant clusters. During a red-alert weather event, 500+ riders activate simultaneously. The payout system sees hundreds of "active" riders in the disruption zone. The liquidity pool drains in minutes.</p>
+      <p><strong>The honest position:</strong> GPS spoofing at the device level cannot be fully stopped — telecom companies do not expose cell tower data directly to third-party apps, and sophisticated spoofing tools can simulate realistic movement. <strong>GigShield does not overclaim device-level detection.</strong> Instead, the primary defense against syndicates operates at the system level — using signals that no individual rider or group of riders can manipulate from their phone.</p>
     </div>
 
-    <h3>7.1 — The Differentiation: How the AI Tells a Real Rider from a Bad Actor</h3>
-    <p>GigShield cross-validates four independent data streams before authorising any payout. A spoofing application can falsify GPS coordinates. It cannot simultaneously falsify all of the following.</p>
+    <h3>8.1 — Individual Fraud: Three Specific Cases (from the GigShield Fraud Engine)</h3>
+    <p>The fraud engine handles three distinct individual fraud patterns, each with a specific detection mechanism and automated response.</p>
+
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:24px 0">
+
+      <div class="defense-layer" style="margin:0">
+        <div class="defense-layer-num">CASE 01</div>
+        <h4>The Couch Claim</h4>
+        <p>Rider is at home during a claimed shift. Their device barely moves — GPS shows a radius under 100 metres for 30+ consecutive minutes while the shift is declared active.</p>
+        <div class="defense-logic">
+<span class="comment">// Detection</span>
+movement_radius &lt; 100m
+duration &gt; 30 minutes
+
+<span class="comment">// Response</span>
+claim_status = <span class="fail">DENIED</span>
+flag_added   = <span class="fail">TRUE</span>
+        </div>
+      </div>
+
+      <div class="defense-layer" style="margin:0">
+        <div class="defense-layer-num">CASE 02</div>
+        <h4>Fake Shift Activation</h4>
+        <p>Rider activates a shift only because they saw a weather alert — their shift start time wildly mismatches their historical working pattern. Detected by the Isolation Forest model comparing against the rider's own 90-day baseline.</p>
+        <div class="defense-logic">
+<span class="comment">// Detection</span>
+shift_start vs historical_pattern
+→ Isolation Forest anomaly score
+
+<span class="comment">// Response</span>
+claim_status = <span class="fail">HELD FOR REVIEW</span>
+        </div>
+      </div>
+
+      <div class="defense-layer" style="margin:0">
+        <div class="defense-layer-num">CASE 03</div>
+        <h4>Naive GPS Spoofing</h4>
+        <p>Rider uses a basic spoofing app that produces physically impossible movement — sustained speeds above 60 km/h in heavy traffic, or a sudden location jump of more than 5 km with no travel time.</p>
+        <div class="defense-logic">
+<span class="comment">// Detection</span>
+speed &gt; 60 km/h sustained
+OR location_jump &gt; 5km instant
+
+<span class="comment">// Response</span>
+claim_status  = <span class="fail">SUSPENDED</span>
+profile_flag  = <span class="fail">TRUE</span>
+        </div>
+      </div>
+
+    </div>
+
+    <h3>8.2 — Passive Sensor Verification Layer (Device Layer)</h3>
+    <p>For fraud that passes the basic movement checks — someone who walks outside or uses a moderate spoofing tool — GigShield adds a passive sensor verification layer using three signals available in the Flutter app that together cover three independent physical dimensions. A fraudster would need to simultaneously satisfy all three to pass, which functionally means they would need to actually be working.</p>
+
+    <div class="callout callout-info">
+      <div class="callout-title">Why These Three Signals — Not More</div>
+      Implementing three signals well is far more valuable than attempting six partially. These three were chosen because they are technically achievable using standard Flutter APIs, cover three independent physical dimensions (network environment, physical motion, acoustic environment), and collectively defeat the opportunistic fraudster without producing false-positives on genuine riders experiencing poor weather conditions.
+    </div>
 
     <div class="defense-layer">
-      <div class="defense-layer-num">LAYER 01</div>
-      <h4>Cell Tower Triangulation — Hard Gate (Not a Weighted Score)</h4>
-      <p>A device's GPS position is reported by the operating system and can be overridden by any application with location permissions. Cell tower associations, by contrast, are determined by physical radio proximity to infrastructure and cannot be altered by any application — they are a function of where the device physically is, not where software claims it is.</p>
-      <p>When a device broadcasts GPS coordinates in Andheri East but is actively handing off between towers in Thane, these signals are in fundamental physical contradiction. GigShield treats this contradiction not as a penalty to the activity score, but as a hard gate: GPS-to-tower zone consistency is a non-negotiable prerequisite for payout evaluation.</p>
+      <div class="defense-layer-num">SIGNAL 01</div>
+      <h4>Network Type Check — navigator.connection API</h4>
+      <p>The simplest and most reliable signal. Checks whether the device is connected to mobile data or a saved home Wi-Fi network at the time of a trigger event. A rider actively delivering in a disruption zone will almost always be on mobile data. A rider at home will almost always be on their home Wi-Fi network.</p>
+      <p>Implementation requires two lines of code using the <code>navigator.connection</code> API. Works on Android and iOS with no additional permissions beyond those already granted for GPS tracking.</p>
       <div class="defense-logic">
-IF  gps_zone  ≠  cell_tower_zone:
-    activity_score  = <span class="fail">0</span>
-    claim_status    = <span class="fail">SUSPENDED</span>
-    reason          = "Tower-GPS zone mismatch — hard gate failed"
-    rider_notified  = False  <span class="comment">// No advance warning given to spoofing actor</span>
+<span class="comment">// Implementation</span>
+const conn = navigator.connection;
+const isOnMobileData = conn.type === 'cellular';
 
-<span class="comment">// This gate fires BEFORE the weighted scoring model runs.</span>
-<span class="comment">// A perfect score on all other signals does not save a claim that fails here.</span>
+<span class="comment">// Scoring</span>
+<span class="ok">mobile data → activity score +15 points</span>
+<span class="fail">home Wi-Fi  → fraud indicator flagged</span>
       </div>
     </div>
 
     <div class="defense-layer">
-      <div class="defense-layer-num">LAYER 02</div>
-      <h4>Behavioural Biometric Fingerprint (90-Day Rolling Baseline)</h4>
-      <p>Every active rider on GigShield accumulates a 90-day rolling behavioural baseline comprising: specific restaurant zones visited, average stop duration at pickup points, micro-route patterns between restaurant clusters, the cadence of zone transitions between orders, and how their activity profile varies between lunch and dinner peaks. This baseline is unique to each rider and represents their genuine working pattern.</p>
-      <p>A genuine rider stranded by heavy rain produces a recognisable disruption signature: a transition from active movement to near-stationarity within the disruption zone, at a time consistent with their usual working hours. A spoofing application simulating generic delivery-route movement lacks the hyper-local specificity of the real rider's baseline — it may produce plausible movement in general, but it will produce movement that deviates from this specific rider's fingerprint on multiple behavioural dimensions simultaneously.</p>
-      <p>The isolation forest model scores each claim event against the rider's own baseline, not a population average. This means that two riders with identical GPS traces can receive different fraud scores if one of them has never worked in that zone before.</p>
-    </div>
+      <div class="defense-layer-num">SIGNAL 02</div>
+      <h4>Accelerometer Pattern — DeviceMotion API</h4>
+      <p>The strongest device-level signal. Uses the <code>DeviceMotion</code> API available in all Flutter contexts. During an active shift, the app samples accelerometer readings every 30 seconds. A two-wheeler in urban traffic produces a distinctive pattern — irregular vibration, stop-start acceleration, and turning forces. A person sitting at home produces a flat or near-zero variance pattern.</p>
+      <p>The check is not complex ML — just a variance threshold. If the standard deviation of accelerometer readings over a 5-minute window is below a threshold consistent with stationary behaviour, the signal flags low activity confidence.</p>
+      <div class="defense-logic">
+<span class="comment">// Sample every 30 seconds during active shift</span>
+accel_readings = DeviceMotion.acceleration (sampled over 5 min)
+variance = stddev(accel_readings)
 
-    <div class="defense-layer">
-      <div class="defense-layer-num">LAYER 03</div>
-      <h4>Network Environment Consistency</h4>
-      <p>A device physically located in a residential area and connected to a home Wi-Fi network exhibits a measurably different network signature than the same device operating on mobile data in a high-density urban delivery zone. Network type, approximate signal strength pattern, and connection event timing are all passively logged by the GigShield Flutter app during the rider's active working hours.</p>
-      <p>Spoofing applications falsify GPS at the operating system level. They do not — and architecturally cannot — alter the physical network environment from which the device operates. A rider at home watching their GPS trace appear in Dadar will still be connected to their home router. Persistent Wi-Fi association during a claimed active delivery shift is weighted as a strong spoofing indicator in the fraud model.</p>
-    </div>
-
-    <div class="defense-layer">
-      <div class="defense-layer-num">LAYER 04</div>
-      <h4>Cross-Signal Contradiction Score</h4>
-      <p>Rather than evaluating each signal independently and summing scores, the fraud model computes a contradiction score — a measure of how internally inconsistent the available signals are with each other. A genuine rider produces a corroborating set: GPS shows movement, towers confirm movement, network shows mobile data, stop durations match restaurant pickup behaviour, and movement speed fits a two-wheeler delivery pattern. The signals tell the same story from different angles.</p>
-      <p>A spoofing attacker — even a sophisticated one — produces contradiction failures. GPS may show movement through a restaurant cluster, but the network environment shows the rider is on home Wi-Fi. The stop durations may be realistic, but the tower associations place the rider in a different district. A high contradiction score — even when no individual signal would have triggered a rejection on its own — causes immediate claim suspension.</p>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Scenario</th><th>GPS</th><th>Towers</th><th>Network</th><th>Stop Pattern</th><th>Contradiction Score</th><th>Outcome</th></tr></thead>
-          <tbody>
-            <tr><td>Genuine stranded rider</td><td>Zone ✅</td><td>Zone ✅</td><td>Mobile data ✅</td><td>Matches baseline ✅</td><td>Low</td><td>Auto-pay</td></tr>
-            <tr><td>Basic GPS spoof</td><td>Zone ✅</td><td>Home ✗</td><td>Home Wi-Fi ✗</td><td>Generic ✗</td><td>Very High</td><td>Hard gate fail</td></tr>
-            <tr><td>Sophisticated spoof</td><td>Zone ✅</td><td>Zone ✅</td><td>Mobile ✅</td><td>Generic ✗</td><td>Medium</td><td>Soft hold → review</td></tr>
-          </tbody>
-        </table>
+<span class="ok">variance &gt; threshold → consistent with vehicle movement</span>
+<span class="fail">variance &lt; threshold → consistent with stationary device</span>
       </div>
     </div>
 
-    <h3>7.2 — The Data: Detecting a Coordinated Fraud Ring</h3>
-    <p>Individual claim-level fraud detection and syndicate-level detection are architecturally separate systems that run in parallel. Even if every individual in a syndicate passes individual fraud checks, the syndicate detection layer can still identify and hold the cohort.</p>
+    <div class="defense-layer">
+      <div class="defense-layer-num">SIGNAL 03</div>
+      <h4>Ambient Sound Level — Web Audio API</h4>
+      <p>Uses the Web Audio API to measure ambient decibel level only — no audio is recorded or stored, just a numeric reading. A food delivery zone during peak hours reads measurably louder than a quiet residential area. The app samples once every 2 minutes during a shift and logs the average level.</p>
+      <p>This is fully privacy-safe: no audio data leaves the device. Only the decibel number is transmitted to the backend. Implementation is achievable in one day and provides a third dimension of physical environment verification that is completely independent of GPS and motion.</p>
+      <div class="defense-logic">
+<span class="comment">// Sample ambient level every 2 minutes — no recording</span>
+level_db = AudioContext → AnalyserNode → getByteFrequencyData()
+
+<span class="ok">level_db &gt; delivery_zone_threshold → outdoor environment signal</span>
+<span class="fail">level_db &lt; quiet_home_threshold   → residential environment signal</span>
+      </div>
+    </div>
+
+    <p>These three signals are named collectively as the <strong>Passive Sensor Verification Layer</strong>. The name is accurate — all three signals are collected passively with no rider interaction required — and precisely describes the mechanism: physical environment verification through device sensors rather than GPS coordinates alone.</p>
+
+    <h3>8.3 — Syndicate Defense: Why the Real Protection is at the System Level</h3>
+    <p>The device layer stops the individual couch claimer and moderate spoofer. It does not stop a sophisticated syndicate where 500 people walk outside simultaneously and pass all three sensor checks. That attack is stopped by four system-level mechanisms that operate on data no individual rider or group can manipulate from their phone.</p>
+
+    <div class="callout callout-warn">
+      <div class="callout-title">The Honest Reality About GPS Spoofing</div>
+      No parametric insurance platform has fully solved GPS spoofing at the device level. The goal is not to make fraud impossible — it is to make it <strong>unprofitable and high-risk</strong>. Even a successful fraudulent claim yields ₹600 once, against permanent account termination. For riders who are actually delivering, the economics of fraud simply do not make sense.
+    </div>
 
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Detection Mechanism</th><th>Signal Monitored</th><th>Syndicate Indicator</th><th>Response</th></tr></thead>
+        <thead><tr><th>System Mechanism</th><th>What It Monitors</th><th>Why It Cannot Be Spoofed</th><th>Response</th></tr></thead>
         <tbody>
-          <tr><td>Zone Velocity Monitor</td><td>Claim submission rate vs 30-day rolling baseline per zone (5-min window)</td><td>Rate exceeds 3× baseline in any 20-minute window</td><td>Circuit breaker: all zone payouts suspended, risk ops alerted</td></tr>
-          <tr><td>Cross-Rider Graph Analysis</td><td>Onboarding timestamps, device fingerprint clusters, UPI bank branch, pre-event GPS origin points</td><td>Multiple riders sharing origin neighbourhood, device clusters, or onboarding cohort</td><td>Cluster flagged: manual confirmation required before any member receives payout</td></tr>
-          <tr><td>Temporal Activation Spikes</td><td>Shift activation event timestamps per zone</td><td>20+ riders in same zone activating within 3 minutes of each other</td><td>Entire activation cohort held pending review — organic riders do not activate simultaneously</td></tr>
-          <tr><td>Order Volume Anchor</td><td>Zone-level platform order volume (proxy via API monitoring)</td><td>No statistically significant order volume drop in claimed disruption zone</td><td>No automated payout issued without ≥35% order decline vs 30-day baseline</td></tr>
-          <tr><td>Device Attestation</td><td>Rooted devices, emulators, developer mode, mock location providers</td><td>Device flags inconsistent with typical delivery rider device profile</td><td>Elevated fraud probability, mandatory manual review</td></tr>
+          <tr><td><strong>Order Volume Anchor</strong></td><td>Zone-level platform order volume via API proxy</td><td>Comes from the platform's servers — no individual rider can manipulate this. A real disruption produces a ≥35% order drop. A fake one does not.</td><td>No payout fires without confirmed order volume drop. This is the single most powerful anti-spoofing mechanism in the system.</td></tr>
+          <tr><td><strong>Zone Velocity Circuit Breaker</strong></td><td>Claim submission rate vs 30-day rolling baseline</td><td>500 fraudsters claiming simultaneously is statistically impossible to fake as organic behaviour.</td><td>If claim volume exceeds 3× baseline in any 20-minute window, all zone payouts suspend automatically — no human needed.</td></tr>
+          <tr><td><strong>Temporal Activation Spike</strong></td><td>Shift activation timestamps per zone</td><td>Genuine riders activate organically across a natural time distribution. A Telegram alert produces a coordinated spike no real behaviour pattern replicates.</td><td>20+ riders activating in the same zone within 3 minutes triggers a cohort hold pending manual review.</td></tr>
+          <tr><td><strong>Isolation Forest Baseline</strong></td><td>Individual rider behaviour vs their own 90-day history</td><td>The model compares each rider against themselves — not the population. A fraudster with no delivery history produces no baseline match.</td><td>Claims deviating from the rider's own historical pattern are flagged regardless of whether any individual signal passes.</td></tr>
         </tbody>
       </table>
     </div>
 
-    <div class="callout callout-warn">
-      <div class="callout-title">Zone Velocity Circuit Breaker — The Syndicate Stopper</div>
-      The most dangerous property of a coordinated syndicate attack is speed — 500 fraudulent claims arrive faster than any human review team can process them. The zone velocity circuit breaker is the architectural response: it requires no human intervention and operates within seconds. If claim volume in any zone spikes to 3× its 30-day rolling average within a 20-minute window, automated payouts halt entirely for that zone. The risk operations team receives an alert with the zone ID, spike magnitude, and a full list of all riders with pending claims. The circuit breaker does not discriminate between fraudulent and genuine claims — it freezes the zone and lets humans sort it out. This is the correct tradeoff: a small delay for genuine claimants is far less harmful than a drained liquidity pool.
-    </div>
-
-    <h3>7.3 — The UX Balance: Protecting Honest Riders</h3>
-    <p>The most important design constraint in adversarial fraud defense is that the same conditions which enable fraud — poor network connectivity, unfamiliar device signals, degraded GPS in heavy rain — are also the conditions genuine riders experience during the very events GigShield is supposed to cover. A system that is too aggressive in flagging claims will wrongfully delay payments for the riders who need them most, at precisely the moment they need them. GigShield resolves this through a three-tier resolution workflow that preserves fast payouts for the majority while creating structured resolution paths for ambiguous cases.</p>
+    <h3>8.4 — The UX Balance: Protecting Honest Riders</h3>
+    <p>The most important constraint in fraud defense is that the same conditions enabling fraud — poor network, a phone in a bag, a quiet outdoor area — are also conditions genuine riders experience. A system that is too aggressive will wrongfully delay payments for riders who need them most. GigShield resolves this through a three-tier resolution workflow.</p>
 
     <div class="tier-workflow">
       <div class="tier-card t1">
@@ -949,8 +1027,8 @@ IF  gps_zone  ≠  cell_tower_zone:
         <div class="tier-card-title">Score ≥ 65, No Flags</div>
         <div class="tier-card-score">~75% of all claims</div>
         <ul class="tier-card-body">
-          <li>Payout initiated within 60 seconds of trigger confirmation</li>
-          <li>WhatsApp confirmation sent to rider: amount, disruption type, duration</li>
+          <li>Payout initiated within 60 seconds of trigger</li>
+          <li>WhatsApp confirmation sent with amount and disruption type</li>
           <li>No rider action required at any point</li>
           <li>Ledger updated, audit log created</li>
         </ul>
@@ -960,11 +1038,10 @@ IF  gps_zone  ≠  cell_tower_zone:
         <div class="tier-card-title">Score 50–64</div>
         <div class="tier-card-score">~20% of all claims</div>
         <ul class="tier-card-body">
-          <li>2-hour passive re-evaluation window begins</li>
+          <li>2-hour passive re-evaluation window</li>
           <li>Rider receives: "Your payout is being processed. We will confirm within 2 hours." — not fraud language</li>
-          <li>Platform passively collects additional signal data during window</li>
-          <li>If score improves above 65: auto-released, no rider interaction needed</li>
-          <li>If score does not improve: escalates to Tier 3</li>
+          <li>Auto-releases if score improves above 65</li>
+          <li>Escalates to Tier 3 if score does not improve</li>
         </ul>
       </div>
       <div class="tier-card t3">
@@ -972,19 +1049,18 @@ IF  gps_zone  ≠  cell_tower_zone:
         <div class="tier-card-title">Score &lt; 50</div>
         <div class="tier-card-score">~5% of all claims</div>
         <ul class="tier-card-body">
-          <li>Routed to manual review with 4-hour SLA</li>
-          <li>Optional evidence upload: delivery summary screenshot or location photo</li>
-          <li>No confirmed fraud = payout released in full, no penalty to profile</li>
-          <li>Confirmed fraud = claim denied, profile flagged, appeal available</li>
-          <li>Wrongful denial = full payout + ₹25 goodwill credit on next premium</li>
-          <li>7-day appeal window with 24-hour human agent review</li>
+          <li>Manual review with 4-hour SLA</li>
+          <li>Optional delivery screenshot or location photo upload</li>
+          <li>No confirmed fraud = payout released in full, no penalty</li>
+          <li>Wrongful denial = full payout + ₹25 goodwill credit</li>
+          <li>7-day appeal window with 24-hour human review</li>
         </ul>
       </div>
     </div>
 
     <div class="callout callout-success">
       <div class="callout-title">Network Drop Tolerance During Genuine Disruptions</div>
-      Severe weather events that justify a parametric payout are exactly the conditions under which mobile network coverage degrades in India. A rider in a flood-affected zone may lose GPS signal, mobile data, or both for extended periods during the disruption. GigShield accounts for this explicitly: GPS signal loss during a confirmed disruption event does not by itself reduce the activity score or trigger a fraud flag. The platform buffers the last confirmed activity state for up to 45 minutes and evaluates the claim against the pre-gap signal record. Signal gaps during confirmed disruption events are treated as environmentally expected — not as evidence of spoofing.
+      Severe weather events — the exact events GigShield covers — degrade mobile networks in India. A rider in a flood-affected zone may lose GPS or mobile data during the disruption. GigShield buffers the last confirmed activity state for up to 45 minutes and evaluates the claim against the pre-gap record. Signal gaps during confirmed disruption events are treated as environmentally expected, not as fraud evidence.
     </div>
   </div>
 </section>
@@ -1001,7 +1077,7 @@ IF  gps_zone  ≠  cell_tower_zone:
         <thead><tr><th>Gate</th><th>Condition</th><th>Source</th><th>Threshold</th></tr></thead>
         <tbody>
           <tr><td>Gate 1</td><td>Disruption Confirmed</td><td>Weather / civic / platform APIs</td><td>Trigger threshold met for rider's active zone</td></tr>
-          <tr><td>Gate 2</td><td>Rider Activity Verified</td><td>Multi-signal GPS + tower + network model</td><td>Composite activity score ≥ 65</td></tr>
+          <tr><td>Gate 2</td><td>Rider Activity Verified</td><td>Multi-signal GPS + passive sensor model</td><td>Composite activity score ≥ 65</td></tr>
           <tr><td>Gate 3</td><td>Fraud Score Clear</td><td>Isolation forest + contradiction model</td><td>Fraud probability &lt; 20%</td></tr>
           <tr><td>Gate 4</td><td>Order Volume Decline</td><td>Zone-level platform API proxy</td><td>≥ 35% decline vs 30-day rolling baseline</td></tr>
         </tbody>
@@ -1058,11 +1134,11 @@ IF  gps_zone  ≠  cell_tower_zone:
     <div class="engine-grid">
       <div class="engine-card">
         <div class="engine-card-name">Risk Engine</div>
-        <div class="engine-card-desc">Evaluates zone-level disruption probability using IMD weather data, CPCB AQI feeds, and historical event logs. Feeds P(disruption) into the Pricing Engine and updates continuously during active alerts.</div>
+        <div class="engine-card-desc">Evaluates zone-level disruption probability using IMD weather data, CPCB AQI feeds, and historical event logs. Combines historical risk scores with 7-day forecast data via the hybrid 60/40 model and updates the disruption risk percentage continuously during active alerts.</div>
       </div>
       <div class="engine-card">
         <div class="engine-card-name">Activity Engine</div>
-        <div class="engine-card-desc">Processes GPS telemetry, cell tower associations, network type, and stop-duration patterns from the Flutter app. Produces a composite activity score (0–100) per active rider in real time.</div>
+        <div class="engine-card-desc">Processes GPS telemetry, passive sensor readings (network type, accelerometer variance, ambient sound level), and stop-duration patterns from the Flutter app. Produces a composite activity score (0–100) per active rider in real time.</div>
       </div>
       <div class="engine-card">
         <div class="engine-card-name">Fraud Engine</div>
@@ -1070,7 +1146,7 @@ IF  gps_zone  ≠  cell_tower_zone:
       </div>
       <div class="engine-card">
         <div class="engine-card-name">Pricing Engine</div>
-        <div class="engine-card-desc">XGBoost two-stage model serving personalised weekly premiums. Retrains monthly on accumulated claims data. SHAP output layer generates plain-language premium breakdowns shown in the Flutter app at onboarding and each renewal.</div>
+        <div class="engine-card-desc">Hybrid risk model serving personalised weekly premiums — combining 60% historical disruption data with 40% 7-day forecast data. Retrains monthly on accumulated claims data. SHAP output layer generates plain-language premium breakdowns shown in the Flutter app at onboarding and each renewal.</div>
       </div>
       <div class="engine-card">
         <div class="engine-card-name">Decision Engine</div>
@@ -1116,7 +1192,7 @@ IF  gps_zone  ≠  cell_tower_zone:
 
     <div class="callout callout-info">
       <div class="callout-title">Flutter App Data Flow</div>
-      The Flutter mobile app serves two roles. For riders it is the interface for onboarding, policy management, payout history, and premium payments. For the backend it is the passive telemetry source — continuously streaming GPS coordinates, cell tower associations, network type, and device attestation status to the FastAPI backend during the rider's registered working hours. No rider interaction is required to transmit these signals; they flow automatically as background data from the app's location and network services.
+      The Flutter mobile app serves two roles. For riders it is the interface for onboarding, policy management, payout history, and premium payments. For the backend it is the passive telemetry source — continuously streaming GPS coordinates, network type, accelerometer readings, ambient sound levels, and device attestation status to the FastAPI backend during the rider's registered working hours. No rider interaction is required to transmit these signals; they flow automatically as background data from the app's location, motion, and network services.
     </div>
   </div>
 </section>
@@ -1126,7 +1202,7 @@ IF  gps_zone  ≠  cell_tower_zone:
   <div class="container">
     <div class="section-label">11 — Technology Stack</div>
     <h2>Tech Stack and System Design</h2>
-    <p class="h2-sub">Flutter frontend, FastAPI backend, XGBoost model serving, and Redis-based real-time state management — chosen for a four-member hackathon team with production viability as a design constraint.</p>
+    <p class="h2-sub">Flutter frontend, FastAPI backend, hybrid AI risk model, and Redis-based real-time state management — selected for production viability, development speed, and the ability to serve all platform layers from a single codebase.</p>
 
     <div class="stack-grid">
       <div class="stack-item"><span class="stack-layer">Frontend</span><div><div class="stack-info-title">Flutter (Mobile App)</div><div class="stack-info-sub">Cross-platform Android and iOS rider app. Handles onboarding, policy dashboard, payout history, and background GPS + signal monitoring. Single codebase for both platforms.</div></div></div>
@@ -1136,7 +1212,7 @@ IF  gps_zone  ≠  cell_tower_zone:
       <div class="stack-item"><span class="stack-layer">Payments</span><div><div class="stack-info-title">Razorpay UPI Sandbox</div><div class="stack-info-sub">Automated payout processing. 60-second payout target from trigger confirmation. Retry logic built in.</div></div></div>
       <div class="stack-item"><span class="stack-layer">Notifications</span><div><div class="stack-info-title">WhatsApp Business API</div><div class="stack-info-sub">Primary communication channel for India's delivery rider population. Disruption alerts, payout confirmations, claim status updates.</div></div></div>
       <div class="stack-item"><span class="stack-layer">Data APIs</span><div><div class="stack-info-title">OpenWeather, CPCB, IMD, Google Maps</div><div class="stack-info-sub">Weather and AQI monitoring. Government RSS for civic disruptions. Google Maps for restaurant cluster zone mapping.</div></div></div>
-      <div class="stack-item"><span class="stack-layer">Hosting</span><div><div class="stack-info-title">AWS EC2 / Render</div><div class="stack-info-sub">Backend and model deployment. Free tier sufficient for hackathon phase. Render for model serving endpoint.</div></div></div>
+      <div class="stack-item"><span class="stack-layer">Hosting</span><div><div class="stack-info-title">AWS EC2 / Render</div><div class="stack-info-sub">Backend and model deployment. AWS EC2 for the FastAPI backend and PostgreSQL. Render for model serving endpoints.</div></div></div>
     </div>
 
     <h3>System Layer Architecture</h3>
@@ -1155,7 +1231,7 @@ IF  gps_zone  ≠  cell_tower_zone:
         <div class="arch-layer-name">Layer 2 — AI Detection</div>
         <div class="arch-layer-title">Per-Rider Signal Processing and Scoring</div>
         <div class="arch-layer-items">
-          <span class="arch-chip">GPS movement model</span><span class="arch-chip">Cell tower triangulation</span><span class="arch-chip">Network telemetry</span>
+          <span class="arch-chip">GPS movement model</span><span class="arch-chip">Passive sensor layer</span><span class="arch-chip">Network telemetry</span>
           <span class="arch-chip">Behavioural fingerprint</span><span class="arch-chip">Device attestation</span><span class="arch-chip">Isolation forest</span>
           <span class="arch-chip">Activity score · Fraud probability · Contradiction score</span>
         </div>
@@ -1213,11 +1289,11 @@ IF  gps_zone  ≠  cell_tower_zone:
       <div class="timeline-item">
         <div class="timeline-date">PHASE 2 — MARCH 21 – APRIL 4, 2026</div>
         <div class="timeline-title">Automation and Protection</div>
-        <div class="timeline-body">Core platform build: rider registration and onboarding Flutter app, policy management, dynamic premium calculator running the XGBoost model, all five parametric triggers implemented, adversarial defense layer with zone velocity circuit breakers, and the zero-touch claims flow end-to-end.</div>
+        <div class="timeline-body">Core platform build: rider registration and onboarding Flutter app, policy management, dynamic premium calculator running the hybrid risk model, all five parametric triggers implemented, adversarial defense layer with zone velocity circuit breakers, and the zero-touch claims flow end-to-end.</div>
         <div class="timeline-deliverables">
           <span class="timeline-chip">Flutter App Build</span>
           <span class="timeline-chip">5 Parametric Triggers</span>
-          <span class="timeline-chip">XGBoost Premium Engine</span>
+          <span class="timeline-chip">Hybrid Risk Model</span>
           <span class="timeline-chip">Defense Layer</span>
           <span class="timeline-chip">2-min Demo Video</span>
         </div>
@@ -1225,7 +1301,7 @@ IF  gps_zone  ≠  cell_tower_zone:
       <div class="timeline-item">
         <div class="timeline-date">PHASE 3 — APRIL 5–17, 2026</div>
         <div class="timeline-title">Scale and Optimise</div>
-        <div class="timeline-body">Advanced fraud detection model training on synthetic data, full Razorpay payout integration, rider and admin dashboards including the Zone Velocity Monitor and Syndicate Risk Feed, final 5-minute demo video, and pitch deck PDF for judging submission.</div>
+        <div class="timeline-body">Advanced fraud detection model training on synthetic data, full Razorpay payout integration, rider and admin dashboards including the Zone Velocity Monitor and Syndicate Risk Feed, final 5-minute demo video, and pitch deck PDF.</div>
         <div class="timeline-deliverables">
           <span class="timeline-chip">Fraud Detection Models</span>
           <span class="timeline-chip">Razorpay Integration</span>
@@ -1236,17 +1312,6 @@ IF  gps_zone  ≠  cell_tower_zone:
       </div>
     </div>
 
-    <h3>Phase 1 Checklist (Due March 20)</h3>
-    <ul class="checklist">
-      <li><span class="check-icon check-done">✅</span> GitHub repository created with README</li>
-      <li><span class="check-icon check-done">✅</span> Persona selection documented with comparative justification</li>
-      <li><span class="check-icon check-done">✅</span> Weekly premium model defined with full calculation methodology</li>
-      <li><span class="check-icon check-done">✅</span> Full disruption taxonomy documented (environmental and social)</li>
-      <li><span class="check-icon check-done">✅</span> Parametric triggers defined with data sources and thresholds</li>
-      <li><span class="check-icon check-done">✅</span> Tech stack and system architecture documented</li>
-      <li><span class="check-icon check-done">✅</span> Adversarial defense and anti-spoofing strategy documented</li>
-      <li><span class="check-icon check-todo">⬜</span> 2-minute strategy and prototype video uploaded to public link</li>
-    </ul>
   </div>
 </section>
 
@@ -1254,22 +1319,25 @@ IF  gps_zone  ≠  cell_tower_zone:
 <section id="viability">
   <div class="container">
     <div class="section-label">13 — Business Viability</div>
-    <h2>A Commercially Viable Platform — Not Just a Hackathon Demo</h2>
+    <h2>A Commercially Viable Platform</h2>
     <p class="h2-sub">GigShield is designed to sustain real-world deployment. The unit economics are grounded in actual rider income data, realistic disruption probability estimates, and a loss ratio target benchmarked against the parametric insurance industry.</p>
 
     <h3>Market Opportunity</h3>
     <div class="market-bar-wrap">
       <div class="market-row">
         <span class="market-label">Total Addressable</span>
-        <div class="market-bar-track"><div class="market-bar-fill" style="width:100%;background:#2A2A2A">3M riders × ₹119 avg = ₹18.6B annualised</div></div>
+        <div class="market-bar-track"><div class="market-bar-fill" style="width:100%;background:#2A2A2A">3M riders</div></div>
+        <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);white-space:nowrap;padding-left:12px">₹18.6B annualised</span>
       </div>
       <div class="market-row">
         <span class="market-label">5% Adoption (Year 1)</span>
-        <div class="market-bar-track"><div class="market-bar-fill" style="width:30%;background:var(--orange)">150K policies = ₹928M/yr</div></div>
+        <div class="market-bar-track"><div class="market-bar-fill" style="width:30%;background:var(--orange)">150K</div></div>
+        <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);white-space:nowrap;padding-left:12px">150,000 policies = ₹928M/yr</span>
       </div>
       <div class="market-row">
         <span class="market-label">2% Adoption (Launch)</span>
-        <div class="market-bar-track"><div class="market-bar-fill" style="width:12%;background:var(--amber)">60K policies = ₹371M/yr</div></div>
+        <div class="market-bar-track"><div class="market-bar-fill" style="width:12%;background:var(--amber)">60K</div></div>
+        <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);white-space:nowrap;padding-left:12px">60,000 policies = ₹371M/yr</span>
       </div>
     </div>
 
@@ -1299,7 +1367,7 @@ IF  gps_zone  ≠  cell_tower_zone:
 
     <div class="callout callout-info">
       <div class="callout-title">Why a 70–75% Loss Ratio is Sustainable</div>
-      Parametric insurance products globally operate at loss ratios between 60% and 80%, reflecting the fact that they pay on objective event occurrence rather than documented individual loss. The GigShield target of 70–75% is deliberately conservative — it allocates sufficient margin for fraud reserve, technology costs, and reinsurance. At scale, the loss ratio is expected to improve further as the XGBoost models accumulate real claims data and P(disruption) estimates become more accurate at the pin-code level.
+      Parametric insurance products globally operate at loss ratios between 60% and 80%, reflecting the fact that they pay on objective event occurrence rather than documented individual loss. The GigShield target of 70–75% is deliberately conservative — it allocates sufficient margin for fraud reserve, technology costs, and reinsurance. At scale, the loss ratio is expected to improve further as the hybrid risk model accumulates real claims data and zone-level historical risk scores become more accurate at the pin-code level.
     </div>
 
     <h3>Distribution Strategy</h3>
@@ -1310,7 +1378,7 @@ IF  gps_zone  ≠  cell_tower_zone:
       <table>
         <thead><tr><th>Risk</th><th>Severity</th><th>Mitigation</th></tr></thead>
         <tbody>
-          <tr class="risk-row-high"><td>GPS spoofing by organized syndicates</td><td>Critical</td><td>Cell tower hard gate, contradiction scoring, zone velocity circuit breaker, temporal activation analysis, order volume anchor</td></tr>
+          <tr class="risk-row-high"><td>GPS spoofing by organized syndicates</td><td>Critical</td><td>Passive sensor verification layer, order volume anchor, zone velocity circuit breaker, temporal activation analysis, isolation forest baseline</td></tr>
           <tr class="risk-row-mid"><td>Legitimate claims wrongly flagged and delayed</td><td>High</td><td>Tiered resolution with 2-hour soft hold, passive re-evaluation, 7-day appeal window, ₹25 goodwill credit for wrongful denials</td></tr>
           <tr class="risk-row-mid"><td>False social disruption triggers from unverified sources</td><td>High</td><td>Dual-source validation: government feed + independent news API + minimum 40% platform order volume drop signal required</td></tr>
           <tr class="risk-row-low"><td>Platform API unavailability for activity verification</td><td>Medium</td><td>Shift declaration model with rider consent; voluntary delivery receipt upload as supplementary evidence; multi-signal model tolerates partial data</td></tr>
