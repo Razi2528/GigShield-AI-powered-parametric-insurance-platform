@@ -12,7 +12,7 @@
 
 <br>
 
-## 📄 [View Full Project Documentation →](https://yourusername.github.io/your-repo-name/README.html)
+## 📄 [View Full Project Documentation →](https://razi2528.github.io/GigShield-AI-powered-parametric-insurance-platform/README.html)
 
 <br>
 
@@ -162,7 +162,7 @@ For the complete proposal including worked premium calculations, full adversaria
 
 <div align="center">
 
-## 📄 [View Full Visual README →](https://yourusername.github.io/your-repo-name/README.html)
+## 📄 [View Full Visual README →](https://razi2528.github.io/GigShield-AI-powered-parametric-insurance-platform/README.html)
 
 </div>
 
